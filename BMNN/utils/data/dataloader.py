@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader
-class AQDataloader(DataLoader):
+class Dataloader(DataLoader):
 
     def __init__(self, *args, **kwargs):
-        super(AQDataloader, self).__init__(*args, **kwargs)
+        super(Dataloader, self).__init__(*args, **kwargs)

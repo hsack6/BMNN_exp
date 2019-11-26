@@ -5,19 +5,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from model import FNN
+from model import PointNet
 from utils.train import train
 from utils.test import test
-from utils.data.dataset import AQDataset
-from utils.data.dataloader import AQDataloader
+from utils.data.dataset import Dataset
+from utils.data.dataloader import Dataloader
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    '--batchSize', type=int, default=32, help='input batch size')
-parser.add_argument(
-    '--workers', type=int, help='number of data loading workers', default=4)
-parser.add_argument(
-    '--nepoch', type=int, default=25, help='number of epochs to train for')
+parser.add_argument('--batchSize', type=int, default=32, help='input batch size')
+parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
+parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--outf', type=str, default='seg', help='output folder')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--path', type=str, default='/Users/shohei/PycharmProjects/BMNN_exp/dataset', help="dataset path")
@@ -34,33 +31,29 @@ random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
 opt.dataroot = opt.path
+opt.n = 2500
+opt.d = 3
+opt.lr = 0.001
 
 
 def main(opt):
-    train_dataset = AQDataset(opt.dataroot, True)
-    train_dataloader = AQDataloader(train_dataset, batch_size=opt.batchSize, \
-                                      shuffle=True, num_workers=2)
+    train_dataset = Dataset(opt.dataroot, True)
+    train_dataloader = Dataloader(train_dataset, batch_size=opt.batchSize, \
+                                      shuffle=False, num_workers=2)
 
-    test_dataset = AQDataset(opt.dataroot, opt.L, False)
-    test_dataloader = AQDataloader(test_dataset, batch_size=opt.batchSize, \
-                                     shuffle=False, num_workers=2)
+    test_dataset = Dataset(opt.dataroot, False)
+    test_dataloader = Dataloader(test_dataset, batch_size=opt.batchSize, \
+                                      shuffle=False, num_workers=2)
 
-    opt.annotation_dim = train_dataset[0][1].shape[2]
-    opt.n_edge_types = train_dataset.n_edge_types
-    opt.n_node = train_dataset.n_node
-
-    net = FNN(opt, hidden_state=opt.state_dim*2)
+    net = PointNet(d=opt.d, feature_transform=opt.feature_transform)
     net.double()
     print(net)
-
-    criterion = nn.MSELoss()
-
 
     optimizer = optim.Adam(net.parameters(), lr=opt.lr)
 
     for epoch in range(0, opt.niter):
-        train(epoch, train_dataloader, net, criterion, optimizer, opt)
-        test(test_dataloader, net, criterion, optimizer, opt)
+        train(epoch, train_dataloader, net, optimizer, opt)
+        test(test_dataloader, net, optimizer, opt)
 
 
 if __name__ == "__main__":
