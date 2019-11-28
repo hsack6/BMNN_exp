@@ -1,7 +1,9 @@
 import torch
+import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 import copy
+import csv
 
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -28,6 +30,7 @@ def Matching(n_list_tup, t_list_tup, n, t):
             break
     return pair_list
 
+
 def BipartiteMatching(new_vec_dic, teacher_vec_dic):
     # sort済みのタプルのリスト[(node_id, vector)]
     n_list_tup = sorted(new_vec_dic.items(), key=lambda x: x[0])
@@ -45,8 +48,11 @@ def BipartiteMatching(new_vec_dic, teacher_vec_dic):
     return node_pair_list, similarity_matrix
 
 
-def train(epoch, dataloader, net, optimizer, opt):
+def train(epoch, dataloader, net, criterion, optimizer, opt):
+    # TODO: 1-simとlog simをグラフにしてみる。
+    # TODO: その他のデータ分布、および混合も試してみる。少なくともカテゴリカル変数は試したい。（属性がembeddingだったらどうすんの〜）
     train_loss = 0
+    baseline_gain = 0
     net.train()
     for i, (sample_idx, baseliene, proposal, target) in enumerate(dataloader, 0):
         net.zero_grad()
@@ -57,21 +63,44 @@ def train(epoch, dataloader, net, optimizer, opt):
 
         proposal, _, _ = net(proposal)
 
-        for batch in range(target.shape[0]):
-            b = {i: baseline[batch][i].tolist() for i in range(opt.n)}
+        transformed_target = torch.Tensor(target.shape[0], opt.n, opt.d)
+        b_similarity = 0
+        for batch in range(opt.batchSize):
             p = {i: proposal[batch][i].tolist() for i in range(opt.n)}
             t = {i: target[batch][i].tolist() for i in range(opt.n)}
-            b_node_pair_list, _ = BipartiteMatching(b, t)
+            b = {i: baseline[batch][i].tolist() for i in range(opt.n)}
             p_node_pair_list, _ = BipartiteMatching(p, t)
+            b_node_pair_list, b_similarity_matrix = BipartiteMatching(b, t)
 
+            for tpl in sorted(p_node_pair_list, key=lambda x: x[0]):
+                transformed_target[batch][tpl[0]] = target[batch][tpl[1]]
 
+            b_score = 0
+            for i in range(opt.n):
+                b_score += b_similarity_matrix[b_node_pair_list[i]]
+            b_score /= opt.n
 
+            b_similarity += b_score
 
-        loss = criterion(output, target)
+        b_similarity /= opt.batchSize
+        target = transformed_target
+        gain = nn.CosineSimilarity(dim=2)(proposal, target)
+        gain = gain.mean()
+        loss = -1 * gain.log()
+        print("train_loss:" + str(loss) + ", train_gain:" + str(gain) + ", baseline_gain:" + str(b_similarity))
         train_loss += loss
+        baseline_gain += b_similarity
 
         loss.backward()
         optimizer.step()
 
-    train_loss /= len(dataloader.dataset)
-    print('Train set: Average loss: {:.4f}'.format(train_loss))
+    train_loss /= (len(dataloader.dataset) / opt.batchSize)
+    baseline_gain /= (len(dataloader.dataset) / opt.batchSize)
+    train_gain = torch.exp(-1 * train_loss)
+    baseline_loss = -1 * np.log(baseline_gain)
+    print('Train set: Average loss: {:.4f}, Average gain: {:.4f}, Baseline loss: {:.4f}, Baseline gaine: {:.4f}'.format(train_loss.item(), train_gain.item(), baseline_loss, baseline_gain))
+
+    log = [train_loss.item(), train_gain.item(), baseline_loss, baseline_gain]
+    with open('train.csv', 'a') as f:
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerow(log)

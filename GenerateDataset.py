@@ -1,9 +1,9 @@
 import numpy as np
 import copy
 
-n = 2500
-d = 3
-n_sample = 1000
+n = 1000
+d = 10
+n_sample = 100
 
 def Matching(n_list_tup, t_list_tup, n, t):
     pair_list = []
@@ -42,11 +42,12 @@ def BipartiteMatching(new_vec_dic, teacher_vec_dic):
     node_pair_list = Matching(copy.copy(n_list_tup), copy.copy(t_list_tup), n.tolist(), t.tolist())
     return node_pair_list, similarity_matrix
 
+seed_array = np.array([np.random.randn(d), np.random.rand(d)]).transpose(1, 0)
+eps_array = np.array([np.random.randn(d), np.random.rand(d)]).transpose(1, 0)
 
+b_score_list = []
 for s in range(n_sample):
     # TODO: サンプルごとに異なるシードで学習できるのか検証。現実的にサンプル間（時系列間）の統計量はそんなに変わらなさそう。
-    seed_array = np.array([np.random.randn(d), np.random.rand(d)]).transpose(1, 0)
-    eps_array = np.array([np.random.randn(d), np.random.rand(d)]).transpose(1, 0)
 
     node_attribute_init = np.zeros((n, d))
     for i in range(n):
@@ -66,21 +67,21 @@ for s in range(n_sample):
     np.save("dataset/proposal/" + str(s) + ".npy", proposal)
     np.save("dataset/target/" + str(s) + ".npy", target)
 
-    """
     b = {i: baseline[i].tolist() for i in range(n)}
-    p = {i: proposal[i].tolist() for i in range(n)}
+    #p = {i: proposal[i].tolist() for i in range(n)}
     t = {i: target[i].tolist() for i in range(n)}
     b_node_pair_list, b_similarity_matrix = BipartiteMatching(b, t)
-    p_node_pair_list, p_similarity_matrix = BipartiteMatching(p, t)
+    #p_node_pair_list, p_similarity_matrix = BipartiteMatching(p, t)
 
     b_score = 0
-    p_score = 0
+    #p_score = 0
     for i in range(n):
         b_score += b_similarity_matrix[b_node_pair_list[i]]
-        p_score += p_similarity_matrix[p_node_pair_list[i]]
+        #p_score += p_similarity_matrix[p_node_pair_list[i]]
     b_score = b_score / n
-    p_score = p_score / n
+    #_score = p_score / n
 
-    print(b_score, p_score)
-    """
+    b_score_list.append(b_score)
+
     print(s)
+print(np.array(b_score_list).mean())
