@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-n = 1000
+n = 10
 d = 10
 n_sample = 100
 
